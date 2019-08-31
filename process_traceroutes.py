@@ -1,5 +1,10 @@
 import json
 import socket
+import sys
+
+if len(sys.argv) < 2:
+	print("Not enough arguments", sys.stderr)
+	exit(1)
 
 data = []
 with open("data/traceroutes.json", "r") as file:
@@ -32,6 +37,10 @@ for i, entry in enumerate(data):
 			ip_pairs[src][hop["addr"]] = []
 		ip_pairs[src][hop["addr"]].append(hop["rtt"] if j == 0 else hop["rtt"] - entry["hops"][j - 1]["rtt"])
 
-with open("data/processed-traceroutes.json", "w") as file:
-	file.write(json.dumps(ip_pairs, indent=4))
-print("Finished!")
+if len(sys.argv) == 3:
+	with open(sys.argv[2], "w") as file:
+		file.write(json.dumps(ip_pairs, indent=4))
+	print("Finished!")
+else:
+	print(json.dumps(ip_pairs, indent=4))
+
