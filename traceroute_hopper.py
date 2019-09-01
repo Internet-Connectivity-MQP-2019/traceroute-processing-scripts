@@ -27,7 +27,7 @@ for i, entry in enumerate(data):
 
 	# Regular traceroute entry
 	for j, hop in enumerate(entry["hops"]):
-		# The source for this entry is either the base source if this is the first hop,
+		# The source for this entry is either the base source if this is the first hop, or the last hop's address
 		src = base_src if j == 0 else entry["hops"][j - 1]["addr"]
 
 		# Difference in RTTs should be the RTT between hops
