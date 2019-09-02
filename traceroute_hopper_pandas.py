@@ -1,15 +1,16 @@
 #!/usr/bin/python3
-import shutil
-import geoip2.database
 import json
-import sys
 import os
 import random
+import shutil
 import socket
 import sqlite3
+import sys
+import struct
 
-import pandas as pd
+import geoip2.database
 import numpy as np
+import pandas as pd
 
 """Usage: ./traceroute_hopper_pandas input geoip_database output_database"""
 
@@ -39,8 +40,8 @@ with open(sys.argv[1], "r") as file:
 			base_src = str(socket.gethostbyname(traceroute["hostname"]))
 			continue
 
-		if i % 5000 == 0:
-			print("Processed {} traceroutes".format(i))
+		# if i % 5000 == 0:
+		# 	print("Processed {} traceroutes".format(i))
 
 		if "hops" not in traceroute.keys():
 			# Some traceroutes fail but the rest of the file should still be okay
@@ -58,20 +59,24 @@ with open(sys.argv[1], "r") as file:
 				if ip not in locations_cache.keys():
 					try:
 						response = locations_db.city(ip)
-						locations_cache[ip] = {"lat": response.location.latitude, "lng": response.location.longitude, "post": response.postal.code}
+						locations_cache[ip] = {
+							"lat": response.location.latitude,
+							"lng": response.location.longitude,
+							"post": response.postal.code
+						}
 					except (geoip2.errors.AddressNotFoundError, ValueError):
 						locations_cache[ip] = {"lat": np.nan, "lng": np.nan, "post": np.nan}
 				pass
 			coords[ip] = locations_cache[ip]
 
-			# Add data to temporary array
-			hops.append([src, dst, rtt, coords[src]["lat"], coords[src]["lng"], coords[src]["post"],
-							 coords[dst]["lat"], coords[dst]["lng"], coords[dst]["post"]])
+			# Add data to temporary array, converting ips to numbers
+			hops.append([struct.unpack("!L", socket.inet_aton(src))[0], struct.unpack("!L", socket.inet_aton(dst))[0],
+						 rtt, coords[src]["lat"], coords[src]["lng"], coords[src]["post"], coords[dst]["lat"],
+						 coords[dst]["lng"], coords[dst]["post"]])
 locations_db.close()
 
 # Create pandas dataframe and use it to save the data
-print("Processed {} hops, converting to dataframe and saving to sqlite...".format(len(hops)))
+print("Saving {} hops to sqlite".format(len(hops)))
 hops_pd = pd.DataFrame(hops, columns=["src", "dst", "rtt", "src_lat", "src_lng", "src_post", "dst_lat", "dst_lng", "dst_post"])
-save_db = sqlite3.connect(sys.argv[3])
-hops_pd.to_sql("hops", save_db)
-print("Done!")
+save_db = sqlite3.connect(sys.argv[3], 3600)
+hops_pd.to_sql("hops", save_db, index=False)
