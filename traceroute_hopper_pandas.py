@@ -27,48 +27,46 @@ shutil.copyfile(sys.argv[2], database_filename)
 locations_db = geoip2.database.Reader(database_filename)
 os.remove(database_filename)
 
-traceroute_jsons = []
-with open(sys.argv[1], "r") as file:
-	for line in file:
-		traceroute_jsons.append(json.loads(line))
-print("Loaded data, got {} entries".format(len(traceroute_jsons)))
-
 locations_cache = {}
-base_src = ""
 hops = []
-for i, entry in enumerate(traceroute_jsons):
-	# Source hostname changed; have to resolve it (then skip traceroute processing because it's not a traceroute)
-	if "hostname" in entry.keys():
-		base_src = str(socket.gethostbyname(entry["hostname"]))
-		continue
+base_src = ""
+with open(sys.argv[1], "r") as file:
+	for i, line in enumerate(file):
+		traceroute = json.loads(line)
 
-	if i % 5000 == 0:
-		print("Processed {} traceroutes".format(i))
+		# Source hostname changed; have to resolve it (then skip traceroute processing because it's not a traceroute)
+		if "hostname" in traceroute.keys():
+			base_src = str(socket.gethostbyname(traceroute["hostname"]))
+			continue
 
-	if "hops" not in entry.keys():
-		# Some traceroutes fail but the rest of the file should still be okay
-		continue
+		if i % 5000 == 0:
+			print("Processed {} traceroutes".format(i))
 
-	# Regular traceroute entry
-	for j, hop in enumerate(entry["hops"]):
-		src = base_src if j == 0 else entry["hops"][j-1]["addr"]
-		dst = hop["addr"]
-		rtt = hop["rtt"] if j == 0 else hop["rtt"] - entry["hops"][j - 1]["rtt"]
+		if "hops" not in traceroute.keys():
+			# Some traceroutes fail but the rest of the file should still be okay
+			continue
 
-		# Get IP locations, first by trying the cache, then by trying the locations db
-		coords = {src: {"lat": np.nan, "lng": np.nan, "post": np.nan}, dst: {"lat": np.nan, "lng": np.nan, "post": np.nan}}
-		for ip in coords.keys():
-			if ip not in locations_cache.keys():
-				try:
-					response = locations_db.city(ip)
-					locations_cache[ip] = {"lat": response.location.latitude, "lng": response.location.longitude, "post": response.postal.code}
-				except (geoip2.errors.AddressNotFoundError, ValueError):
-					locations_cache[ip] = {"lat": np.nan, "lng": np.nan, "post": np.nan}
-					pass
+		# Regular traceroute entry
+		for j, hop in enumerate(traceroute["hops"]):
+			src = base_src if j == 0 else traceroute["hops"][j - 1]["addr"]
+			dst = hop["addr"]
+			rtt = hop["rtt"] if j == 0 else hop["rtt"] - traceroute["hops"][j - 1]["rtt"]
+
+			# Get IP locations, first by trying the cache, then by trying the locations db
+			coords = {src: {"lat": np.nan, "lng": np.nan, "post": np.nan}, dst: {"lat": np.nan, "lng": np.nan, "post": np.nan}}
+			for ip in coords.keys():
+				if ip not in locations_cache.keys():
+					try:
+						response = locations_db.city(ip)
+						locations_cache[ip] = {"lat": response.location.latitude, "lng": response.location.longitude, "post": response.postal.code}
+					except (geoip2.errors.AddressNotFoundError, ValueError):
+						locations_cache[ip] = {"lat": np.nan, "lng": np.nan, "post": np.nan}
+				pass
 			coords[ip] = locations_cache[ip]
 
-		# Add data to temporary array
-		hops.append([src, dst, rtt, coords[src]["lat"], coords[src]["lng"], coords[src]["post"], coords[dst]["lat"], coords[dst]["lng"], coords[dst]["post"]])
+			# Add data to temporary array
+			hops.append([src, dst, rtt, coords[src]["lat"], coords[src]["lng"], coords[src]["post"],
+							 coords[dst]["lat"], coords[dst]["lng"], coords[dst]["post"]])
 locations_db.close()
 
 # Create pandas dataframe and use it to save the data
