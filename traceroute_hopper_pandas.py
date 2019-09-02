@@ -1,3 +1,4 @@
+#!/usr/bin/python3
 import shutil
 import geoip2.database
 import json
@@ -43,6 +44,10 @@ for i, entry in enumerate(traceroute_jsons):
 
 	if i % 5000 == 0:
 		print("Processed {} traceroutes".format(i))
+
+	if "hops" not in entry.keys():
+		# Some traceroutes fail but the rest of the file should still be okay
+		continue
 
 	# Regular traceroute entry
 	for j, hop in enumerate(entry["hops"]):
