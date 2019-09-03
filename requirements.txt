@@ -31,10 +31,12 @@ pandocfilters==1.4.2
 parso==0.5.1
 pexpect==4.7.0
 pickleshare==0.7.5
+pip-autoremove==0.9.1
 prometheus-client==0.7.1
 prompt-toolkit==2.0.9
 ptyprocess==0.6.0
 Pygments==2.4.2
+pyodbc==4.0.27
 pyrsistent==0.15.4
 python-dateutil==2.8.0
 pytz==2019.2
