@@ -4,13 +4,11 @@ import os
 import random
 import shutil
 import socket
-import sqlite3
 import sys
 import struct
+import pyodbc
 
 import geoip2.database
-import numpy as np
-import pandas as pd
 
 """Usage: ./traceroute_hopper_pandas input geoip_database output_database"""
 
@@ -29,8 +27,13 @@ locations_db = geoip2.database.Reader(database_filename)
 os.remove(database_filename)
 
 locations_cache = {}
-hops = []
 base_src = ""
+with open(sys.argv[3], "r") as db_config:
+	connection_str = "DRIVER={{MySQL}};Login Prompt=False;UID={user};Password={password};Data Source={host};Database={database};CHARSET=UTF8".format(**json.load(db_config))
+	connection = pyodbc.connect(connection_str)
+	# connection = MySQLdb.connect(**json.load(db_config))
+cursor = connection.cursor()
+insert_stmt = "INSERT INTO hops (src, dst, rtt, src_lat, src_lng, src_pst, dst_lat, dst_lng, dst_pst) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);"
 with open(sys.argv[1], "r") as file:
 	for i, line in enumerate(file):
 		traceroute = json.loads(line)
@@ -40,8 +43,9 @@ with open(sys.argv[1], "r") as file:
 			base_src = str(socket.gethostbyname(traceroute["hostname"]))
 			continue
 
-		# if i % 5000 == 0:
-		# 	print("Processed {} traceroutes".format(i))
+		if i % 5000 == 0:
+			print("Processed {} traceroutes".format(i))
+			cursor.commit()
 
 		if "hops" not in traceroute.keys():
 			# Some traceroutes fail but the rest of the file should still be okay
@@ -54,7 +58,7 @@ with open(sys.argv[1], "r") as file:
 			rtt = hop["rtt"] if j == 0 else hop["rtt"] - traceroute["hops"][j - 1]["rtt"]
 
 			# Get IP locations, first by trying the cache, then by trying the locations db
-			coords = {src: {"lat": np.nan, "lng": np.nan, "post": np.nan}, dst: {"lat": np.nan, "lng": np.nan, "post": np.nan}}
+			coords = {src: {"lat": None, "lng": None, "post": None}, dst: {"lat": None, "lng": None, "post": None}}
 			for ip in coords.keys():
 				if ip not in locations_cache.keys():
 					try:
@@ -65,18 +69,21 @@ with open(sys.argv[1], "r") as file:
 							"post": response.postal.code
 						}
 					except (geoip2.errors.AddressNotFoundError, ValueError):
-						locations_cache[ip] = {"lat": np.nan, "lng": np.nan, "post": np.nan}
-				pass
-			coords[ip] = locations_cache[ip]
+						locations_cache[ip] = {"lat": None, "lng": None, "post": None}
+				coords[ip] = locations_cache[ip]
 
-			# Add data to temporary array, converting ips to numbers
-			hops.append([struct.unpack("!L", socket.inet_aton(src))[0], struct.unpack("!L", socket.inet_aton(dst))[0],
+			# Insert hop data into database
+			cursor.execute(insert_stmt, (struct.unpack("!L", socket.inet_aton(src))[0], struct.unpack("!L", socket.inet_aton(dst))[0],
 						 rtt, coords[src]["lat"], coords[src]["lng"], coords[src]["post"], coords[dst]["lat"],
-						 coords[dst]["lng"], coords[dst]["post"]])
-locations_db.close()
+						 coords[dst]["lng"], coords[dst]["post"]))
 
-# Create pandas dataframe and use it to save the data
-print("Saving {} hops to sqlite".format(len(hops)))
-hops_pd = pd.DataFrame(hops, columns=["src", "dst", "rtt", "src_lat", "src_lng", "src_post", "dst_lat", "dst_lng", "dst_post"])
-save_db = sqlite3.connect(sys.argv[3], 3600)
-hops_pd.to_sql("hops", save_db, index=False)
+			# Consider the RTT for the source to the destination too, not just the hop
+			if j != 0:
+				cursor.execute(insert_stmt, (struct.unpack("!L", socket.inet_aton(base_src))[0], struct.unpack("!L", socket.inet_aton(dst))[0],
+					hop["rtt"], locations_cache[base_src]["lat"], locations_cache[base_src]["lng"], locations_cache[base_src]["post"], coords[dst]["lat"],
+					coords[dst]["lng"], coords[dst]["post"]))
+
+
+print("Saving to database...")
+connection.close()
+locations_db.close()

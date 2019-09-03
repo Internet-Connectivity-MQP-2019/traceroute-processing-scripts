@@ -4,3 +4,5 @@ lib64
 etc
 share
 data
+dbconfig.json
+jobs.txt
