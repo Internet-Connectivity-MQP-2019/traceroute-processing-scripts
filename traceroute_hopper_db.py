@@ -47,10 +47,11 @@ with open(sys.argv[1], "r") as file:
 			base_src = str(socket.gethostbyname(traceroute["hostname"]))
 			continue
 
-		if i % 10000 == 0 and len(hops) != 0:
+		if i % 20000 == 0 and len(hops) != 0:
 			print("Processed {} traceroutes".format(i))
 			args_str = ",".join(("('%s', '%s', %d, %s, %s, %s, %s)" % tuple(hop)) for hop in hops)
 			cursor.execute("INSERT INTO hops VALUES " + args_str)
+			args_str = ""
 			hops.clear()
 
 		if "hops" not in traceroute.keys():
