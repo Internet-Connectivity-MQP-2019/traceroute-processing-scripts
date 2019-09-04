@@ -29,11 +29,15 @@ os.remove(database_filename)
 locations_cache = {}
 base_src = ""
 with open(sys.argv[3], "r") as db_config:
-	connection_str = "DRIVER={{MySQL}};Login Prompt=False;UID={user};Password={password};Data Source={host};Database={database};CHARSET=UTF8".format(**json.load(db_config))
+	connection_str = "DRIVER={{PostgreSQL Unicode}};UID={user};Host={host};Database={database};Pooling=True;Min Pool Size=0;Max Pool Size=100;".format(
+		**json.load(db_config))
 	connection = pyodbc.connect(connection_str)
-	# connection = MySQLdb.connect(**json.load(db_config))
+connection.setdecoding(pyodbc.SQL_WCHAR, encoding="utf-8")
+connection.setencoding(encoding="utf-8")
+connection.maxwrite = 2 << 32
+
 cursor = connection.cursor()
-insert_stmt = "INSERT INTO hops (src, dst, rtt, src_lat, src_lng, src_pst, dst_lat, dst_lng, dst_pst) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);"
+insert_stmt = "INSERT INTO hops (src, dst, rtt, src_lat, src_lng, dst_lat, dst_lng) VALUES (?, ?, ?, ?, ?, ?, ?);"
 with open(sys.argv[1], "r") as file:
 	for i, line in enumerate(file):
 		traceroute = json.loads(line)
@@ -45,7 +49,7 @@ with open(sys.argv[1], "r") as file:
 
 		if i % 5000 == 0:
 			print("Processed {} traceroutes".format(i))
-			cursor.commit()
+			connection.commit()
 
 		if "hops" not in traceroute.keys():
 			# Some traceroutes fail but the rest of the file should still be okay
@@ -58,7 +62,7 @@ with open(sys.argv[1], "r") as file:
 			rtt = hop["rtt"] if j == 0 else hop["rtt"] - traceroute["hops"][j - 1]["rtt"]
 
 			# Get IP locations, first by trying the cache, then by trying the locations db
-			coords = {src: {"lat": None, "lng": None, "post": None}, dst: {"lat": None, "lng": None, "post": None}}
+			coords = {src: {"lat": None, "lng": None}, dst: {"lat": None, "lng": None}}
 			for ip in coords.keys():
 				if ip not in locations_cache.keys():
 					try:
@@ -66,24 +70,22 @@ with open(sys.argv[1], "r") as file:
 						locations_cache[ip] = {
 							"lat": response.location.latitude,
 							"lng": response.location.longitude,
-							"post": response.postal.code
 						}
 					except (geoip2.errors.AddressNotFoundError, ValueError):
-						locations_cache[ip] = {"lat": None, "lng": None, "post": None}
+						locations_cache[ip] = {"lat": None, "lng": None}
 				coords[ip] = locations_cache[ip]
 
 			# Insert hop data into database
-			cursor.execute(insert_stmt, (struct.unpack("!L", socket.inet_aton(src))[0], struct.unpack("!L", socket.inet_aton(dst))[0],
-						 rtt, coords[src]["lat"], coords[src]["lng"], coords[src]["post"], coords[dst]["lat"],
-						 coords[dst]["lng"], coords[dst]["post"]))
+			cursor.execute(insert_stmt, (src, dst, rtt, coords[src]["lat"], coords[src]["lng"], coords[dst]["lat"],
+										 coords[dst]["lng"]))
 
 			# Consider the RTT for the source to the destination too, not just the hop
 			if j != 0:
-				cursor.execute(insert_stmt, (struct.unpack("!L", socket.inet_aton(base_src))[0], struct.unpack("!L", socket.inet_aton(dst))[0],
-					hop["rtt"], locations_cache[base_src]["lat"], locations_cache[base_src]["lng"], locations_cache[base_src]["post"], coords[dst]["lat"],
-					coords[dst]["lng"], coords[dst]["post"]))
-
+				cursor.execute(insert_stmt, (base_src, dst, hop["rtt"], locations_cache[base_src]["lat"],
+								locations_cache[base_src]["lng"], coords[dst]["lat"], coords[dst]["lng"]))
 
 print("Saving to database...")
+cursor.commit()
+print("Saved!")
 connection.close()
 locations_db.close()
