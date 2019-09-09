@@ -7,34 +7,41 @@ from itertools import chain
 from multiprocessing.pool import ThreadPool
 
 
-def process_database(results_db_name, query):
+def process_database(results_db_name, query, verbose):
 	"""Returns a function to run a query across multiple SQLite databases"""
 	def func(db_name):
 		# Connect to database, execute query and load into memory directly rather than lock the results db for an INSERT
 		# INTO table VALUES {query}; statement
+		if verbose:
+			print("Executing query on {}".format(results_db_name))
 		db = sqlite3.connect(db_name)
 		db_cursor = db.cursor()
 		db_cursor.execute(query)
-		results = db_cursor.fetchall()
+		subquery_results = db_cursor.fetchall()
 		db.close()
-		if len(results) == 0:
+		if verbose:
+			print("Got {} results from query".format(len(subquery_results)))
+		if len(subquery_results) == 0:
 			db.close()
+			if verbose:
+				print("Query thread complete")
 			return
 		if results_db_name == ":memory:":
-			return results
+			return subquery_results
 
-		# Connect to re
+		# Connect to results database, dump data inside
+		if verbose:
+			print("Dumping data into results database")
 		results_db_t = sqlite3.connect(results_db_name, 3600)
 		results_cursor_t = results_db_t.cursor()
-		dynamic_insert(results_cursor_t, results)
-		del results
-		results_db.close()
+		values_str = ",".join("?" for arg in subquery_results[0])
+		results_cursor_t.executemany("INSERT INTO mq_result VALUES ({});".format(values_str), subquery_results)
+		del subquery_results
+		results_db_t.commit()
+		results_db_t.close()
+		if verbose:
+			print("Query thread complete")
 	return func
-
-
-def dynamic_insert(cursor, values):
-	values_str = ",".join("?" for arg in values[0])
-	cursor.executemany("INSERT INTO mq_result VALUES ({});".format(values_str), values)
 
 
 parser = argparse.ArgumentParser(description="Run queries on groups of SQLite databases")
@@ -43,9 +50,12 @@ parser.add_argument("query", type=str, help="SELECT query to execute")
 parser.add_argument("-o", "--output", type=str, default=":memory:",
 					help="Name of output to save results to. If none is provided, output will be printed as a CSV.")
 parser.add_argument("databases", type=str, help="SQLite databases to run queries against", nargs="+")
+parser.add_argument("-v", "--verbose", action="store_true", default=False, help="Verbose output")
 args = parser.parse_args()
 
 # Create in-memory working DB, populate with data from the first database in the list since we need to create the table
+if args.verbose:
+	print("Connecting to database, executing query on first input database")
 results_db = sqlite3.connect(args.output)
 results_cursor = results_db.cursor()
 results_cursor.execute("ATTACH DATABASE '{}' AS db;".format(args.databases[0]))
@@ -54,9 +64,14 @@ results_cursor.execute("DETACH DATABASE 'db';")
 del args.databases[0]
 
 # Use thread pool to process remaining databases
+if args.verbose:
+	print("Spinning up thread pool with {} threads".format(args.threads))
 pool = ThreadPool(args.threads)
-results = pool.map(process_database(args.output, args.query), args.databases)
+results = pool.map(process_database(args.output, args.query, args.verbose), args.databases)
+# pool.join()
 pool.close()
+if args.verbose:
+	print("Thread pool closed and joined; accumulating results")
 
 # No more processing to do since the data is already saved in the results database; go home.
 if args.output != ":memory:":
