@@ -5,4 +5,6 @@ etc
 share
 data
 dbconfig.json
+*.db
+*.db-journal
 jobs.txt
