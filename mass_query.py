@@ -17,9 +17,15 @@ def process_database(query, verbose):
 			print("Executing query on {}".format(db_name))
 		db = sqlite3.connect(db_name)
 		db_cursor = db.cursor()
-		db_cursor.execute(query)
-		subquery_results = db_cursor.fetchall()
-		db.close()
+		try:
+			db_cursor.execute(query)
+			subquery_results = db_cursor.fetchall()
+		except sqlite3.OperationalError:
+			print("Failed to get data from {}!".format(db_name))
+			return
+		finally:
+			db.close()
+
 		if verbose:
 			print("Got {} results from query".format(len(subquery_results)))
 		if len(subquery_results) == 0:
@@ -52,7 +58,7 @@ del args.databases[0]
 if args.verbose:
 	print("Spinning up thread pool with {} threads".format(args.threads))
 pool = ThreadPool(args.threads)
-results = pool.map(process_database(args.output, args.query, args.verbose), args.databases)
+results = pool.map(process_database(args.query, args.verbose), args.databases)
 # pool.join()
 pool.close()
 if args.verbose:
