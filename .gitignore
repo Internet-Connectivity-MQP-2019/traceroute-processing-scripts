@@ -6,3 +6,4 @@ share
 data
 *.db
 *.db-journal
+jobs.txt

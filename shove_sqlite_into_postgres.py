@@ -85,4 +85,5 @@ for db in args.databases:
 	insert_db(cursor, args.dst_table, vals_str, processed_results)
 	print("Inserted {} rows from {} into database!".format(len(processed_results), db))
 
+connection.close()
 print("Complete! Transferred {} total rows from {} databases".format(count, len(args.databases) + 1))

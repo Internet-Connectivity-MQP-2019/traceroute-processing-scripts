@@ -1,11 +1,11 @@
 #!/usr/bin/python3
 import argparse
 import csv
-import os
 import sqlite3
 from io import StringIO
 from itertools import chain
 from multiprocessing.pool import ThreadPool
+from sys import exit
 
 
 def process_database(query, verbose):
@@ -22,7 +22,7 @@ def process_database(query, verbose):
 			subquery_results = db_cursor.fetchall()
 		except sqlite3.OperationalError:
 			print("Failed to get data from {}!".format(db_name))
-			return
+			return []
 		finally:
 			db.close()
 
@@ -49,7 +49,7 @@ if args.verbose:
 	print("Connecting to database, executing query on first input database")
 results_db = sqlite3.connect(args.output)
 results_cursor = results_db.cursor()
-results_cursor.execute("ATTACH DATABASE '{}' AS db;".format(args.databases[0]))
+results_cursor.execute("ATTACH DATABASE '{}' AS 'db';".format(args.databases[0]))
 results_cursor.execute("CREATE TABLE mq_result AS {};".format(args.query))
 results_cursor.execute("DETACH DATABASE 'db';")
 del args.databases[0]
@@ -59,16 +59,16 @@ if args.verbose:
 	print("Spinning up thread pool with {} threads".format(args.threads))
 pool = ThreadPool(args.threads)
 results = pool.map(process_database(args.query, args.verbose), args.databases)
-# pool.join()
 pool.close()
 if args.verbose:
-	print("Thread pool closed and joined; accumulating results")
+	print("Work complete; accumulating results")
 
 # Save to database
 results_flat = list(chain(*results))
 if args.output != ":memory:" and len(args.databases) > 0:
 	values_str = ",".join("?" for arg in results[0])
-	results_cursor.executemany("INSERT INTO mq_result VALUES ({});".format(values_str), results)
+	results_cursor.executemany("INSERT INTO mq_result VALUES ({});".format(values_str), results_flat)
+	results_db.commit()
 	results_db.close()
 	exit(0)
 
