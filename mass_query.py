@@ -1,19 +1,20 @@
 #!/usr/bin/python3
 import argparse
 import csv
+import os
 import sqlite3
 from io import StringIO
 from itertools import chain
 from multiprocessing.pool import ThreadPool
 
 
-def process_database(results_db_name, query, verbose):
+def process_database(query, verbose):
 	"""Returns a function to run a query across multiple SQLite databases"""
 	def func(db_name):
 		# Connect to database, execute query and load into memory directly rather than lock the results db for an INSERT
 		# INTO table VALUES {query}; statement
 		if verbose:
-			print("Executing query on {}".format(results_db_name))
+			print("Executing query on {}".format(db_name))
 		db = sqlite3.connect(db_name)
 		db_cursor = db.cursor()
 		db_cursor.execute(query)
@@ -23,24 +24,8 @@ def process_database(results_db_name, query, verbose):
 			print("Got {} results from query".format(len(subquery_results)))
 		if len(subquery_results) == 0:
 			db.close()
-			if verbose:
-				print("Query thread complete")
 			return
-		if results_db_name == ":memory:":
-			return subquery_results
-
-		# Connect to results database, dump data inside
-		if verbose:
-			print("Dumping data into results database")
-		results_db_t = sqlite3.connect(results_db_name, 3600)
-		results_cursor_t = results_db_t.cursor()
-		values_str = ",".join("?" for arg in subquery_results[0])
-		results_cursor_t.executemany("INSERT INTO mq_result VALUES ({});".format(values_str), subquery_results)
-		del subquery_results
-		results_db_t.commit()
-		results_db_t.close()
-		if verbose:
-			print("Query thread complete")
+		return subquery_results
 	return func
 
 
@@ -73,8 +58,11 @@ pool.close()
 if args.verbose:
 	print("Thread pool closed and joined; accumulating results")
 
-# No more processing to do since the data is already saved in the results database; go home.
-if args.output != ":memory:":
+# Save to database
+results_flat = list(chain(*results))
+if args.output != ":memory:" and len(args.databases) > 0:
+	values_str = ",".join("?" for arg in results[0])
+	results_cursor.executemany("INSERT INTO mq_result VALUES ({});".format(values_str), results)
 	results_db.close()
 	exit(0)
 
@@ -84,7 +72,6 @@ results_cursor.execute("SELECT * FROM mq_result;")
 results.insert(0, results_cursor.fetchall())
 results_db.close()
 
-results_flat = list(chain(*results))
 tmp_csv_text = StringIO()
 csv_writer = csv.writer(tmp_csv_text)
 for result in results_flat:
