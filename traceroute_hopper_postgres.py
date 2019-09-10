@@ -1,14 +1,9 @@
 #!/usr/bin/python3
 import json
-import os
-import random
-import shutil
 import socket
 import sys
-import struct
-import pyodbc
 
-import geoip2.database
+import pyodbc
 
 """Usage: ./traceroute_hopper_db input output_database"""
 
