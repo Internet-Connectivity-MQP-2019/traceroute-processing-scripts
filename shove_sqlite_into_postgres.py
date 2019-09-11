@@ -48,6 +48,7 @@ args = parser.parse_args()
 
 with open(args.config, "r") as db_config:
 	connection = get_postgres_connection(db_config)
+cursor = connection.cursor()
 print("Connected to database, fetching data from first sqlite db")
 
 results = get_from_sqlite(args.databases[0], args.src_table)
