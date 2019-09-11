@@ -1,23 +1,22 @@
 #!/usr/bin/python3
+import argparse
 import json
 import socket
-import sys
 
 from postgresql import get_postgres_connection
 
-"""Usage: ./traceroute_hopper_db input output_database"""
+parser = argparse.ArgumentParser(description="Process a scamper-generated multi json and send results to PostgreSQL")
+parser.add_argument("dbconfig", type=str, help="DB Config file")
+parser.add_argument("input", type=str, help="Multi JSON file to process")
+parser.add_argument("--ping", "-p", action="store_true", help="No hop mode, process traceroutes as strict pings only")
+args = parser.parse_args()
 
-if len(sys.argv) < 3:
-	print("Not enough arguments", file=sys.stderr)
-	exit(1)
-
-locations_cache = {}
 base_src = ""
-with open(sys.argv[2], "r") as db_config:
+with open(args.dbconfig, "r") as db_config:
 	connection = get_postgres_connection(db_config)
 cursor = connection.cursor()
 hops = []
-with open(sys.argv[1], "r") as file:
+with open(args.input, "r") as file:
 	for i, line in enumerate(file):
 		traceroute = json.loads(line)
 
@@ -38,21 +37,22 @@ with open(sys.argv[1], "r") as file:
 			continue
 
 		# Regular traceroute entry
-		for j, hop in enumerate(traceroute["hops"]):
-			src = base_src if j == 0 else traceroute["hops"][j - 1]["addr"]
-			dst = hop["addr"]
-			rtt = hop["rtt"] if j == 0 else hop["rtt"] - traceroute["hops"][j - 1]["rtt"]
+		if args.ping:
+			# Ping mode -- just do one entry
+			hops.append((base_src, traceroute["dst"], traceroute["hops"][len(traceroute["hops"]) - 1]["rtt"]))
+		else:
+			# Perform hop processing
+			for j, hop in enumerate(traceroute["hops"]):
+				src = base_src if j == 0 else traceroute["hops"][j - 1]["addr"]
+				rtt = hop["rtt"] if j == 0 else hop["rtt"] - traceroute["hops"][j - 1]["rtt"]
 
-			# Insert hop data into database
-			hops.append([src, dst, rtt])
+				# Insert hop data into database
+				hops.append((src, hop["addr"], rtt))
 
-			# Consider the RTT for the source to the destination too, not just the hop
-			if j != 0:
-				hops.append([base_src, dst, hop["rtt"]])
 
 print("Committing to database...")
 if len(hops) != 0:
-	args_str = ",".join(("('%s', '%s', %d)" % tuple(hop)) for hop in hops)
+	args_str = ",".join(("('%s', '%s', %d)" % hop) for hop in hops)
 	cursor.execute("INSERT INTO hops VALUES " + args_str)
 cursor.commit()
 print("Committed!")
