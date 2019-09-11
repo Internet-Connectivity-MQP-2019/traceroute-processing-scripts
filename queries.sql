@@ -1,0 +1,9 @@
+SELECT count(src) FROM hops;
+
+INSERT INTO locations(ip)
+    SELECT DISTINCT src FROM hops
+ON CONFLICT DO NOTHING;
+
+INSERT INTO locations(ip)
+    SELECT DISTINCT dst FROM hops
+ON CONFLICT DO NOTHING;
