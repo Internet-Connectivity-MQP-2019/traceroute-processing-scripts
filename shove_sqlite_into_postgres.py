@@ -1,11 +1,11 @@
 #!/usr/bin/python3
 import argparse
-import json
-import pyodbc
 import socket
 import struct
 import sys
 import sqlite3
+
+from postgresql import get_postgres_connection
 
 
 def process_results(resultset):
@@ -47,13 +47,7 @@ parser.add_argument("databases", type=str, help="SQLite databases to shove into 
 args = parser.parse_args()
 
 with open(args.config, "r") as db_config:
-	connection_str = "DRIVER={{PostgreSQL Unicode}};UID={user};Host={host};Database={database};Pooling=True;Min Pool Size=0;Max Pool Size=100;".format(
-		**json.load(db_config))
-	connection = pyodbc.connect(connection_str)
-connection.setdecoding(pyodbc.SQL_WCHAR, encoding="utf-8")
-connection.setencoding(encoding="utf-8")
-connection.maxwrite = 2 << 32
-cursor = connection.cursor()
+	connection = get_postgres_connection(db_config)
 print("Connected to database, fetching data from first sqlite db")
 
 results = get_from_sqlite(args.databases[0], args.src_table)

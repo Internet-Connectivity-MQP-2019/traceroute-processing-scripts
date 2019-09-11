@@ -3,7 +3,7 @@ import json
 import socket
 import sys
 
-import pyodbc
+from postgresql import get_postgres_connection
 
 """Usage: ./traceroute_hopper_db input output_database"""
 
@@ -14,13 +14,7 @@ if len(sys.argv) < 3:
 locations_cache = {}
 base_src = ""
 with open(sys.argv[2], "r") as db_config:
-	connection_str = "DRIVER={{PostgreSQL Unicode}};UID={user};Host={host};Database={database};Pooling=True;Min Pool Size=0;Max Pool Size=100;".format(
-		**json.load(db_config))
-	connection = pyodbc.connect(connection_str)
-connection.setdecoding(pyodbc.SQL_WCHAR, encoding="utf-8")
-connection.setencoding(encoding="utf-8")
-connection.maxwrite = 2 << 32
-
+	connection = get_postgres_connection(db_config)
 cursor = connection.cursor()
 hops = []
 with open(sys.argv[1], "r") as file:
