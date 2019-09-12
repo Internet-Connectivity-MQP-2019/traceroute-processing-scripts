@@ -10,14 +10,14 @@ CREATE MATERIALIZED VIEW hops_aggregate AS (
         agg.rtt_avg,
         agg.rtt_stdev,
         agg.rtt_range,
-        agg.measurments
+        agg.measurements
     FROM (
              SELECT src,
                     dst,
                     AVG(RTT)            AS rtt_avg,
                     stddev(RTT)         AS rtt_stdev,
                     MAX(RTT) - MIN(RTT) AS rtt_range,
-                    COUNT(src)          AS measurments
+                    COUNT(src)          AS measurements
              FROM hops
              GROUP BY (src, dst)
          ) agg
@@ -25,10 +25,11 @@ CREATE MATERIALIZED VIEW hops_aggregate AS (
                         ON agg.src = src_loc.ip
                             AND src_loc.lat != 'NaN'::float
              INNER JOIN locations dst_loc
-                        ON agg.src = dst_loc.ip
+                        ON agg.dst = dst_loc.ip
                             AND dst_loc.lat != 'NaN'::float
 );
 CREATE INDEX hops_aggregate_src_loc_index ON hops_aggregate(src_lat, src_lng);
 CREATE INDEX hops_aggregate_dst_loc_index ON hops_aggregate(dst_lat, dst_lng);
+CREATE INDEX hops_aggregate_src_index ON hops_aggregate(src);
 REFRESH MATERIALIZED VIEW hops_aggregate; -- Run to update the view. Will take a while!
 
