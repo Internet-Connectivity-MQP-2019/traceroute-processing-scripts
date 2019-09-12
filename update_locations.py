@@ -12,7 +12,7 @@ parser.add_argument("config", type=str, help="DB config file")
 parser.add_argument("geoip_db", type=str, help="GeoIP2 database")
 args = parser.parse_args()
 
-with open("dbconfig.json", "r") as db_config:
+with open(args.config, "r") as db_config:
 	connection = get_postgres_connection(db_config)
 cursor = connection.cursor()
 geoip_reader = geoip2.database.Reader(args.geoip_db)

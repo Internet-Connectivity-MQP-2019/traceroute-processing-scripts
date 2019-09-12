@@ -7,6 +7,7 @@ CREATE MATERIALIZED VIEW hops_aggregate AS (
         agg.dst,
         dst_loc.lat AS dst_lat,
         dst_loc.lng AS dst_lng,
+        agg.rtt_avg,
         agg.rtt_stdev,
         agg.rtt_range,
         agg.measurments
