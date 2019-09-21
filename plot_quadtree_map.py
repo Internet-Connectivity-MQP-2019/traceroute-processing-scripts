@@ -28,7 +28,7 @@ with open(args.dbconfig, "r") as dbconfig:
 cursor = connection.cursor()
 
 vprint("Grabbing connectivity data")
-cursor.execute("SELECT lng, lat, connectivity FROM hops_ms_per_km WHERE connectivity < 0.05 AND connectivity > 0.01"
+cursor.execute("SELECT lng, lat, connectivity FROM hops_ms_per_km WHERE connectivity < 0.03 AND connectivity > 0.003"
 						 " AND lng < ? AND lng > ? AND lat < ? AND lat > ?",
 						 (args.max_lng, args.min_lng, args.max_lat, args.min_lat))
 results = cursor.fetchall()
@@ -47,10 +47,11 @@ quads = pd.DataFrame(quadtree.get_bboxes(), columns=["min_lng", "min_lat", "max_
 vprint("Got {} boxes ({:.1f}% reduction), calculating heights+widths and plotting".format(len(quads), 100 * (1 - len(quads) / len(results))))
 del results, quadtree
 
+quads["avg"] = pow(quads["avg"], 8)
 quads["height"] = quads["max_lat"] - quads["min_lat"]
 quads["width"] = quads["max_lng"] - quads["min_lng"]
 patches = quads.apply(lambda row: Rectangle((row["min_lng"], row["min_lat"]), row["width"], row["height"]), axis=1)
-patch_collection = PatchCollection(patches, cmap=matplotlib.cm.afmhot, alpha=0.6)
+patch_collection = PatchCollection(patches, cmap=matplotlib.cm.inferno, alpha=0.6)
 patch_collection.set_array(quads["avg"])
 
 matplotlib.rcParams["figure.dpi"] = args.dpi
