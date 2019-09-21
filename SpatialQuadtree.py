@@ -1,3 +1,4 @@
+import sys
 from statistics import median, mean, stdev
 
 
@@ -49,13 +50,15 @@ class SpatialQuadtree:
 		if len(self.children) == 0:
 			self.__subdivide()
 		for child in self.children:
-			child.force_subdivide()
+			if len(child.items) > self.max_items:
+				child.force_subdivide()
 
 	def __find_child(self, point):
 		"""Find the child that the given point belongs in"""
 		for child in self.children:
 			if child.fits_in_bbox(point):
 				return child
+		print("Child doesn't fit in bounding box!", file=sys.stderr)
 
 	def fits_in_bbox(self, point):
 		"""Determine if a point fits in this tree's bounding box"""
@@ -75,3 +78,13 @@ class SpatialQuadtree:
 		# We have items! Get their averages
 		vals = [i[1] for i in self.items]
 		return [[*self.bbox, mean(vals), stdev(vals) if len(vals) > 1 else float("nan"), median(vals), len(self.items)]] #  trust me on this, it makes .extend work
+
+	def get_bboxes_blank(self):
+		"""Get a list of bounding boxes, no data values included. This means ALL children are returned."""
+		if len(self.children) > 0:
+			results = []
+			for child in self.children:
+				results.extend(child.get_bboxes_blank())
+			return results
+
+		return [[*self.bbox]]
