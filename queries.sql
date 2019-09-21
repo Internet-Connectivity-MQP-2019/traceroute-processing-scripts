@@ -29,3 +29,5 @@ SELECT dst, dst_lat AS lat, dst_lng AS lng, AVG(rtt_avg / distance) * 100 AS dis
 FROM hops_aggregate
 WHERE rtt_avg > 5 AND rtt_avg < 2000 AND distance > 0
 GROUP BY dst, dst_lat, dst_lng;
+
+SELECT COUNT(lng) FROM hops_ms_per_km WHERE lat = -97
