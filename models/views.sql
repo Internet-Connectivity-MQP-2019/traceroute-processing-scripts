@@ -47,6 +47,7 @@ CREATE INDEX hops_aggregate_src_loc_index ON hops_aggregate(src_lat, src_lng);
 CREATE INDEX hops_aggregate_dst_loc_index ON hops_aggregate(dst_lat, dst_lng);
 CREATE INDEX hops_aggregate_src_index ON hops_aggregate(src);
 CREATE INDEX hops_aggregate_dst_index ON hops_aggregate(dst);
+CREATE INDEX hops_aggregate_avg_index ON hops_aggregate(rtt_avg);
 REFRESH MATERIALIZED VIEW hops_aggregate; -- Run to update the view. Will take a while!
 
 CREATE VIEW hops_aggregate_stdev_filtered AS (
