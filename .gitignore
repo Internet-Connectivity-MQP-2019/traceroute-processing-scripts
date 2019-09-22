@@ -4,3 +4,4 @@ dbconfig.json
 *.db-journal
 jobs.txt
 dbconfig-light.json
+*.png
