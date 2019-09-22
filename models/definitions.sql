@@ -2,11 +2,12 @@
 CREATE TABLE hops (
     src         INET,
     dst         INET,
-    rtt         REAL
+    rtt         REAL,
+    time        INTEGER
 ) PARTITION BY RANGE (src);
 
-CREATE INDEX src_index ON hops (src);
-CREATE INDEX dst_index ON hops (dst);
+-- CREATE INDEX src_index ON hops (src);
+-- CREATE INDEX dst_index ON hops (dst);
 
 CREATE TABLE h0 PARTITION OF hops FOR VALUES FROM ('0.0.0.0') TO ('16.255.255.255');
 CREATE TABLE h1 PARTITION OF hops FOR VALUES FROM ('16.255.255.255') TO ('32.255.255.255');
@@ -24,7 +25,7 @@ CREATE TABLE hC PARTITION OF hops FOR VALUES FROM ('192.255.255.255') TO ('208.2
 CREATE TABLE hD PARTITION OF hops FOR VALUES FROM ('208.255.255.255') TO ('224.255.255.255');
 CREATE TABLE hE PARTITION OF hops FOR VALUES FROM ('224.255.255.255') TO ('240.255.255.255');
 CREATE TABLE hF PARTITION OF hops FOR VALUES FROM ('240.255.255.255') TO ('255.255.255.255');
-
+DELETE FROM hops;
 
 -- Locations table: One IP, one coordinate pair. Partition by first 4 bits of the IP, index by IP and location.
 CREATE TABLE locations (
@@ -32,8 +33,8 @@ CREATE TABLE locations (
     lat REAL,
     lng REAL
 ) PARTITION BY RANGE (ip);
-CREATE INDEX ip_index ON locations(ip ASC);
-CREATE INDEX loc_index on locations(lat, lng);
+-- CREATE INDEX ip_index ON locations(ip ASC);
+-- CREATE INDEX loc_index on locations(lat, lng);
 
 CREATE TABLE l0 PARTITION OF locations FOR VALUES FROM ('0.0.0.0') TO ('16.255.255.255');
 CREATE TABLE l1 PARTITION OF locations FOR VALUES FROM ('16.255.255.255') TO ('32.255.255.255');
