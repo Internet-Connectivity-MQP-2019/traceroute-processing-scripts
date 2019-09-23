@@ -1,11 +1,12 @@
 -- Hops table: One source, one destination, one RTT. Partition by first 4 bits of source, index by source and hops.
+-- Timestamp provides info on when the measurement was taken, "indirect" indicates this hop's RTT was calculated.
 CREATE TABLE hops (
     src         INET,
     dst         INET,
     rtt         REAL,
-    time        INTEGER
+    time        INTEGER,
+    indirect    BOOLEAN
 ) PARTITION BY RANGE (src);
-
 -- CREATE INDEX src_index ON hops (src);
 -- CREATE INDEX dst_index ON hops (dst);
 
@@ -25,7 +26,7 @@ CREATE TABLE hC PARTITION OF hops FOR VALUES FROM ('192.255.255.255') TO ('208.2
 CREATE TABLE hD PARTITION OF hops FOR VALUES FROM ('208.255.255.255') TO ('224.255.255.255');
 CREATE TABLE hE PARTITION OF hops FOR VALUES FROM ('224.255.255.255') TO ('240.255.255.255');
 CREATE TABLE hF PARTITION OF hops FOR VALUES FROM ('240.255.255.255') TO ('255.255.255.255');
-DELETE FROM hops;
+CREATE TABLE hZ PARTITION OF hops FOR VALUES FROM ('::') TO ('FFFF:FFFF:FFFF:FFFF:FFFF:FFFF:FFFF:FFFF');
 
 -- Locations table: One IP, one coordinate pair. Partition by first 4 bits of the IP, index by IP and location.
 CREATE TABLE locations (

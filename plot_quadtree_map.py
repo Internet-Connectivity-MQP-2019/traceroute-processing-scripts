@@ -94,7 +94,7 @@ if args.mode == "contour":
 	grid_x = np.linspace(-X_RES, X_RES, 2*X_RES + 1)
 	grid_y = np.linspace(-Y_RES, Y_RES, 2*Y_RES + 1)
 	z = griddata((quads["center_x"].values, quads["center_y"].values), quads["avg"].values, (grid_x[None, :], grid_y[:, None]), method='linear')
-	plt.contourf(grid_x, grid_y, z, 100, transform=ccrs.PlateCarree(), cmap=matplotlib.cm.inferno)
+	plt.contourf(grid_x, grid_y, z, 50, transform=ccrs.PlateCarree(), cmap=matplotlib.cm.inferno)
 elif args.mode == "scatter":
 	plt.scatter(quads["center_x"].values, quads["center_y"].values, c=quads["avg"].values, transform=ccrs.PlateCarree(),
 				marker=".", alpha=0.6, cmap=matplotlib.cm.inferno)
