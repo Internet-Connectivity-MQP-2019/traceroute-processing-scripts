@@ -10,8 +10,6 @@ RETURNS REAL AS $distance$
     END;
 $distance$ LANGUAGE plpgsql;
 
-SELECT haversine_distance(-180, 174, -41, 180);
-
 -- Materialized view caches results since the query inside is ridiculously expensive
 CREATE MATERIALIZED VIEW hops_aggregate AS (
     SELECT

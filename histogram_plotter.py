@@ -14,7 +14,7 @@ args = parser.parse_args()
 with open(args.dbconfig, "r") as dbconfig:
 	connection = postgresql.get_postgres_connection(dbconfig)
 
-df = pd.read_sql_query("SELECT CASE rtt_stdev WHEN 0 THEN 0 ELSE rtt_avg / rtt_stdev END AS data FROM hops_aggregate WHERE rtt_stdev < 125 AND rtt_avg < 1000", connection)
+df = pd.read_sql_query("SELECT rtt_stdev / rtt_avg AS data FROM hops_aggregate WHERE rtt_avg != 0 AND (rtt_stdev / rtt_avg) < 1.0", connection)
 print("Retrieved {} rows".format(len(df)))
 
 # Main histogram chart
@@ -22,7 +22,7 @@ matplotlib.rcParams["figure.dpi"] = 600
 fig, ax = plt.subplots()
 ax.hist(df["data"], bins=1500)
 labels = ax.get_xticklabels()
-ax.set(xlim=[0, 300], ylabel="Measurement count", xlabel="Coefficient of variation",
+ax.set(xlim=[0, 1], ylabel="Measurement count", xlabel="Coefficient of variation",
 	   title="CAIDA Coefficient of Variation Distribution")
 
 # Display 5th and 95th quantiles

@@ -44,10 +44,11 @@ with open(args.input, "r") as file:
 			if len(base_src) == 0:
 				continue
 
-		if i % 20000 == 0 and len(hops) != 0:
-			vprint("Processed {} traceroutes".format(i))
+		# Dump saved buffer of hops into DB, but don't commit.
+		if i % 10000 == 0 and len(hops) != 0:
 			args_str = ",".join(("('%s', '%s', %f, %d, '%s')" % hop) for hop in hops)
 			cursor.execute("INSERT INTO hops VALUES " + args_str)
+			vprint("Processed {} traceroutes".format(i))
 			args_str = ""
 			hops.clear()
 
@@ -70,23 +71,31 @@ with open(args.input, "r") as file:
 			else:
 				hops.append((base_src, traceroute["dst"], traceroute["hops"][len(traceroute["hops"]) - 1]["rtt"], time, 0))
 		else:
+			# Either direct or full hopping node
 			for j, hop in enumerate(traceroute["hops"] if not args.atlas else traceroute["result"]):
-				if not args.direct:
-					if args.atlas:
-						# Atlas is *weird*. Some results don't have RTTs!
-						if "result" not in hop.keys():
-							continue
-						hop["result"] = list(filter(lambda r: "rtt" in r.keys(), hop["result"]))
-						if len(hop["result"]) == 0:
-							continue
-						last_hop = traceroute["result"][j - 1]
-						if len(last_hop["result"]) == 0:
-							# Just append the direct hop instead and continue onward; this is probably cheaper than
-							# exception handling would be at this scale.
-							hops.append((base_src, hop["result"][0]["from"], curr_mean, time, 'f'))
-							continue
 
-						curr_mean = mean([result["rtt"] for result in hop["result"]])  # Also used later
+				# Verification and preprocessing for Atlas data
+				if args.atlas:
+					# Atlas is *weird*. Some results don't have RTTs!
+					if "result" not in hop.keys():
+						continue
+					hop["result"] = list(filter(lambda r: "rtt" in r.keys(), hop["result"]))
+					if len(hop["result"]) == 0:
+						continue
+					last_hop = traceroute["result"][j - 1]
+					curr_mean = mean([result["rtt"] for result in hop["result"]])  # Also used later
+
+				# Add a hop for the direct source->hop entry
+				if args.atlas:
+					hops.append((base_src, hop["result"][0]["from"], curr_mean, time, 'f'))
+				else:
+					hops.append((base_src, hop["addr"], hop["rtt"], time, 'f'))  # Base source to this hop
+
+				# Full hopping mode includes calculations for RTT between individual hops
+				if not args.direct and j != 0:
+					if args.atlas:
+						if len(last_hop["result"]) == 0:
+							continue
 						src = base_src if j == 0 else last_hop["result"][0]["from"]
 						rtt = curr_mean if j == 0 else curr_mean - mean([result["rtt"] for result in last_hop["result"]])
 						dst = hop["result"][0]["from"]  # Assume there will always be at least one entry
@@ -96,13 +105,6 @@ with open(args.input, "r") as file:
 						rtt = hop["rtt"] if j == 0 else hop["rtt"] - last_hop["rtt"]
 						dst = hop["addr"]
 					hops.append((src, dst, rtt, time, 't'))  # Last hop to current hop
-
-				if j != 0:
-					if args.atlas:
-						hops.append((base_src, hop["result"][0]["from"], curr_mean, time, 'f'))
-					else:
-						hops.append((base_src, hop["addr"], hop["rtt"], time, 'f'))  # Base source to this hop
-
 
 vprint("Committing to database...")
 if len(hops) != 0:
