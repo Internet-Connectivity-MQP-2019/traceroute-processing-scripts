@@ -14,6 +14,7 @@ parser.add_argument("--ping", "-p", action="store_true", help="No hop mode, proc
 parser.add_argument("--direct", "-d", action="store_true", help="Hop mode with direct routes only")
 parser.add_argument("--verbose", "-v", action="store_true", help="Verbose output")
 parser.add_argument("--atlas", "-a", action="store_true", help="Atlas traceroute parsing mode")
+parser.add_argument("--buffer", "-b", type=int, default=10000, help="Length of processed traceroute buffer awaiting db storage")
 args = parser.parse_args()
 
 if args.ping and args.direct:
@@ -45,7 +46,7 @@ with open(args.input, "r") as file:
 				continue
 
 		# Dump saved buffer of hops into DB, but don't commit.
-		if i % 10000 == 0 and len(hops) != 0:
+		if i % args.buffer == 0 and len(hops) != 0:
 			args_str = ",".join(("('%s', '%s', %f, %d, '%s')" % hop) for hop in hops)
 			cursor.execute("INSERT INTO hops VALUES " + args_str)
 			vprint("Processed {} traceroutes".format(i))
@@ -96,13 +97,13 @@ with open(args.input, "r") as file:
 					if args.atlas:
 						if len(last_hop["result"]) == 0:
 							continue
-						src = base_src if j == 0 else last_hop["result"][0]["from"]
-						rtt = curr_mean if j == 0 else curr_mean - mean([result["rtt"] for result in last_hop["result"]])
+						src = last_hop["result"][0]["from"]
+						rtt = curr_mean - mean([result["rtt"] for result in last_hop["result"]])
 						dst = hop["result"][0]["from"]  # Assume there will always be at least one entry
 					else:
 						last_hop = traceroute["hops"][j - 1]
-						src = base_src if j == 0 else last_hop["addr"]
-						rtt = hop["rtt"] if j == 0 else hop["rtt"] - last_hop["rtt"]
+						src = last_hop["addr"]
+						rtt = hop["rtt"] - last_hop["rtt"]
 						dst = hop["addr"]
 					hops.append((src, dst, rtt, time, 't'))  # Last hop to current hop
 

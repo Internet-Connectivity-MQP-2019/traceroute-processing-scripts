@@ -65,3 +65,32 @@ CREATE MATERIALIZED VIEW hops_ms_per_km AS (
 );
 CREATE INDEX hops_ms_per_km_pos_index ON hops_ms_per_km(lat, lng);
 CREATE INDEX hops_ms_per_km_connectivity_index ON hops_ms_per_km(connectivity);
+
+SELECT
+        agg.src,
+        src_loc.lat AS src_lat,
+        src_loc.lng AS src_lng,
+        agg.dst,
+        dst_loc.lat AS dst_lat,
+        dst_loc.lng AS dst_lng,
+        haversine_distance(src_loc.lat, src_loc.lng, dst_loc.lat, dst_loc.lng) AS distance,
+        agg.rtt_avg,
+        agg.rtt_stdev,
+        agg.rtt_range,
+        agg.measurements
+    FROM (
+             SELECT src,
+                    dst,
+                    AVG(RTT)            AS rtt_avg,
+                    stddev(RTT)         AS rtt_stdev,
+                    MAX(RTT) - MIN(RTT) AS rtt_range,
+                    COUNT(src)          AS measurements
+             FROM hops
+             GROUP BY (src, dst)
+         ) agg
+             INNER JOIN locations src_loc
+                        ON agg.src = src_loc.ip
+                            AND src_loc.lat != 'NaN'::float
+             INNER JOIN locations dst_loc
+                        ON agg.dst = dst_loc.ip
+                            AND dst_loc.lat != 'NaN'::float
