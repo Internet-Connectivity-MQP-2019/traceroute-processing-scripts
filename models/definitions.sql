@@ -3,12 +3,11 @@
 CREATE TABLE hops (
     src         INET,
     dst         INET,
-    rtt         REAL,
-    time        INTEGER,
-    indirect    BOOLEAN
-) PARTITION BY RANGE (dst);
--- CREATE INDEX src_index ON hops (src);
--- CREATE INDEX dst_index ON hops (dst);
+    rtt         REAL
+);
+CREATE INDEX src_index ON he USING HASH(src);
+CREATE INDEX dst_src_BRIN_index ON hops USING brin(dst, src);
+VACUUM VERBOSE ANALYSE hz;
 
 CREATE TABLE h0 PARTITION OF hops FOR VALUES FROM ('0.0.0.0') TO ('16.255.255.255');
 CREATE TABLE h1 PARTITION OF hops FOR VALUES FROM ('16.255.255.255') TO ('32.255.255.255');
@@ -30,27 +29,60 @@ CREATE TABLE hZ PARTITION OF hops FOR VALUES FROM ('::') TO ('FFFF:FFFF:FFFF:FFF
 
 -- Locations table: One IP, one coordinate pair. Partition by first 4 bits of the IP, index by IP and location.
 CREATE TABLE locations (
-    ip inet PRIMARY KEY,
-    lat REAL,
-    lng REAL
-) PARTITION BY RANGE (ip);
--- CREATE INDEX ip_index ON locations(ip ASC);
--- CREATE INDEX loc_index on locations(lat, lng);
+    ip INET PRIMARY KEY,
+    coord POINT -- Lat/Long
+);
+CREATE INDEX ip_index ON locations USING HASH(ip);
+CREATE INDEX ip_index2 ON locations(ip ASC);
 
-CREATE TABLE l0 PARTITION OF locations FOR VALUES FROM ('0.0.0.0') TO ('16.255.255.255');
-CREATE TABLE l1 PARTITION OF locations FOR VALUES FROM ('16.255.255.255') TO ('32.255.255.255');
-CREATE TABLE l2 PARTITION OF locations FOR VALUES FROM ('32.255.255.255') TO ('48.255.255.255');
-CREATE TABLE l3 PARTITION OF locations FOR VALUES FROM ('48.255.255.255') TO ('64.255.255.255');
-CREATE TABLE l4 PARTITION OF locations FOR VALUES FROM ('64.255.255.255') TO ('80.255.255.255');
-CREATE TABLE l5 PARTITION OF locations FOR VALUES FROM ('80.255.255.255') TO ('96.255.255.255');
-CREATE TABLE l6 PARTITION OF locations FOR VALUES FROM ('96.255.255.255') TO ('112.255.255.255');
-CREATE TABLE l7 PARTITION OF locations FOR VALUES FROM ('112.255.255.255') TO ('128.255.255.255');
-CREATE TABLE l8 PARTITION OF locations FOR VALUES FROM ('128.255.255.255') TO ('144.255.255.255');
-CREATE TABLE l9 PARTITION OF locations FOR VALUES FROM ('144.255.255.255') TO ('160.255.255.255');
-CREATE TABLE lA PARTITION OF locations FOR VALUES FROM ('160.255.255.255') TO ('176.255.255.255');
-CREATE TABLE lB PARTITION OF locations FOR VALUES FROM ('176.255.255.255') TO ('192.255.255.255');
-CREATE TABLE lC PARTITION OF locations FOR VALUES FROM ('192.255.255.255') TO ('208.255.255.255');
-CREATE TABLE lD PARTITION OF locations FOR VALUES FROM ('208.255.255.255') TO ('224.255.255.255');
-CREATE TABLE lE PARTITION OF locations FOR VALUES FROM ('224.255.255.255') TO ('240.255.255.255');
-CREATE TABLE lF PARTITION OF locations FOR VALUES FROM ('240.255.255.255') TO ('255.255.255.255');
-CREATE TABLE lDefault PARTITION OF locations DEFAULT;
+CREATE TABLE unlocatable_ips (
+    ip INET PRIMARY KEY
+);
+INSERT INTO unlocatable_ips (SELECT ip FROM locations WHERE coord[0] = 'NaN'::float);
+DELETE FROM locations WHERE coord[0] = 'NaN'::float;
+
+CREATE TABLE hops_aggregate (
+    src             INET,
+    dst             INET,
+    indirect        BOOLEAN,
+    src_loc         POINT,
+    dst_loc         POINT,
+    distance        REAL,
+    rtt_avg         REAL,
+    rtt_stdev       REAL,
+    rtt_range       REAL,
+    time_avg        REAL,
+    time_stdev      REAL,
+    time_range      REAL,
+    measurements    BIGINT,
+    PRIMARY KEY (src, dst, indirect)
+);
+
+INSERT INTO hops_aggregate (
+    SELECT
+           src,
+           dst,
+           indirect,
+           hop[0],
+           hop[1],
+           distance,
+           rtt_avg,
+           rtt_stdev,
+           rtt_range,
+           time_avg,
+           time_stdev,
+           time_range,
+           measurements
+    FROM hops_aggregate_view);
+
+CREATE INDEX hops_stats_index ON hops_aggregate USING brin(rtt_avg, rtt_stdev, rtt_range, time_avg, time_stdev, time_range, measurements);
+CREATE INDEX hops_spatial_src_index ON hops_aggregate USING spgist(src_loc);
+CREATE INDEX hops_spatial_dst_index ON hops_aggregate USING spgist(dst_loc);
+
+CREATE TABLE quads (
+    quad            BOX,
+    connect_avg     FLOAT,
+    connect_stdev   FLOAT,
+    connect_med     FLOAT,
+    connect_cnt     INT
+);

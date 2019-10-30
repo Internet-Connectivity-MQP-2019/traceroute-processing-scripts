@@ -19,7 +19,7 @@ geoip_reader = geoip2.database.Reader(args.geoip_db)
 
 # Fetch list of IPs that need processing -- these are IPs with null lat/lngs, the IPs that
 # don't have corresponding locations have lat/lng set to NaN
-cursor.execute("SELECT ip FROM locations WHERE lat IS NULL or lng IS NULL")
+cursor.execute("SELECT ip FROM locations WHERE coord IS NULL")
 ips = [result[0] for result in cursor.fetchall()]
 if len(ips) == 0:
 	print("Didn't retrieve any IPs that need updating, quitting!")
@@ -46,6 +46,6 @@ del ips  # Free up some memory
 for i, loc in enumerate(locations):
 	if i % 5000 == 0 and i != 0:
 		print("Updated {0} ({1:.1f}%) IPs...".format(i, i * 100 / len(locations)))
-	cursor.execute("UPDATE locations SET lat = ?, lng = ? WHERE ip = ?", loc)
+	cursor.execute("UPDATE locations SET coord=POINT(?, ?) WHERE ip = ?", loc)
 cursor.commit()
 print("Complete! Updated locations for {} IPs".format(len(locations)))

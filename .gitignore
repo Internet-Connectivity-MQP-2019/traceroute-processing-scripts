@@ -1,7 +1,6 @@
 data
-dbconfig.json
 *.db
 *.db-journal
 jobs.txt
-dbconfig-light.json
 *.png
+dbconfig*

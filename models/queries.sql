@@ -1,16 +1,23 @@
-SELECT count(src) FROM hops;
+EXPLAIN SELECT count(*) FROM hops;
 SELECT count(ip) FROM locations;
 SELECT count(src) FROM hops_aggregate;
 
+CREATE OR REPLACE FUNCTION hop_split(src INET, dst INET) RETURNS QUERY AS $hops_split$
+BEGIN
+    RETURN (src, dst);
+END $hops_split$ language plpgsql;
+
+SELECT hop_split(inet_in('192.168.1.1'), inet_in('192.168.1.2'));
+
 INSERT INTO locations(ip)
-    SELECT DISTINCT src FROM hops
+    (SELECT dst FROM hops)
 ON CONFLICT DO NOTHING;
 
 INSERT INTO locations(ip)
-    SELECT DISTINCT dst FROM hops
+    (SELECT src FROM hops)
 ON CONFLICT DO NOTHING;
 
-SELECT ip FROM locations WHERE lat IS NULL or lng IS NUll;
+SELECT COUNT(*) FROM locations;
 
 SELECT *FROM hops_aggregate WHERE measurments > 50 AND rtt_avg >0 ORDER BY rtt_stdev, measurments DESC;
 
@@ -34,7 +41,43 @@ GROUP BY dst, dst_lat, dst_lng;
 SELECT COUNT(lng) FROM hops_ms_per_km WHERE lat = -97;
 
 SELECT SUM(reltuples) AS approximate_row_count FROM pg_class WHERE relname LIKE 'h%';
+SELECT * FROM pg_class WHERE relname LIKE 'h%' ORDER BY reltuples ASC;
 
-VACUUM VERBOSE ANALYZE hops;
+SELECT
+  t.tablename,
+  indexname,
+  c.reltuples AS num_rows,
+  pg_size_pretty(pg_relation_size(quote_ident(t.tablename)::text)) AS table_size,
+  pg_size_pretty(pg_relation_size(quote_ident(indexrelname)::text)) AS index_size,
+  CASE WHEN indisunique THEN 'Y'
+    ELSE 'N'
+  END AS UNIQUE,
+  idx_scan AS number_of_scans,
+  idx_tup_read AS tuples_read,
+  idx_tup_fetch AS tuples_fetched
+FROM pg_tables t
+  LEFT OUTER JOIN pg_class c ON t.tablename=c.relname
+  LEFT OUTER JOIN
+    ( SELECT c.relname AS ctablename, ipg.relname AS indexname, x.indnatts AS number_of_columns, idx_scan, idx_tup_read, idx_tup_fetch, indexrelname, indisunique FROM pg_index x
+      JOIN pg_class c ON c.oid = x.indrelid
+      JOIN pg_class ipg ON ipg.oid = x.indexrelid
+      JOIN pg_stat_all_indexes psai ON x.indexrelid = psai.indexrelid )
+    AS foo
+  ON t.tablename = foo.ctablename
+WHERE t.schemaname='public'
+ORDER BY 1,2;
 
-DELETE FROM hops;
+-- Wyoming!
+SELECT src FROM hops_aggregate WHERE
+    src_loc[1] >= -111.05688 AND
+    src_loc[0] >= 40.994746 AND
+    src_loc[1] <= -104.05216 AND
+    src_loc[0] <= 45.005904
+ORDER BY src;
+
+SELECT src_loc[0], src_loc[1], rtt_avg / distance FROM hops_aggregate
+					   WHERE distance != 0 AND (rtt_avg / distance) < 0.1 AND (rtt_avg / distance) > 0.01 AND indirect = FALSE
+		                AND BOX(POINT(-45, -90), POINT(-22.5, -45)) @> src_loc
+					    LIMIT 10000000;
+
+DELETE FROM quads;
