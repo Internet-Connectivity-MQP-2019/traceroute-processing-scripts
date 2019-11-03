@@ -49,8 +49,6 @@ CREATE TABLE hops_aggregate AS (SELECT * FROM hops_aggregate_view);
 CREATE INDEX hops_aggregate_src_index ON hops_aggregate(src);
 CREATE INDEX hops_aggregate_dst_index ON hops_aggregate(dst);
 CREATE INDEX hops_aggregate_avg_index ON hops_aggregate USING BRIN(rtt_avg);
-CREATE INDEX hops_aggregate_measurements ON hops_aggregate(measurements);
-CREATE INDEX hops_aggre
 -- REFRESH MATERIALIZED VIEW hops_aggregate; -- Run to update the view. Will take a while!
 
 CREATE VIEW hops_aggregate_stdev_filtered AS (
@@ -61,3 +59,34 @@ CREATE VIEW hops_aggregate_stdev_filtered AS (
     )
     SELECT * FROM hops_aggregate WHERE rtt_avg BETWEEN (SELECT lower_bound FROM bounds) AND (SELECT upper_bound FROM bounds)
 );
+
+CREATE TABLE hops_aggregate_us (
+    src             INET,
+    dst             INET,
+    indirect        BOOLEAN,
+    src_loc         POINT,
+    dst_loc         POINT,
+    distance        REAL,
+    rtt_avg         REAL,
+    rtt_stdev       REAL,
+    rtt_range       REAL,
+    time_avg        REAL,
+    time_stdev      REAL,
+    time_range      REAL,
+    measurements    BIGINT,
+    PRIMARY KEY (src, dst, indirect)
+);
+INSERT INTO hops_aggregate_us (
+    SELECT *
+    FROM hops_aggregate
+    WHERE BOX(POINT(18.91619, -171.791110603), POINT(71.3577635769, -66.96466)) @> src_loc
+    OR BOX(POINT(18.91619, -171.791110603), POINT(71.3577635769, -66.96466)) @> dst_loc
+);
+
+CREATE INDEX hops_aggregate_us_src_index ON hops_aggregate_us(src);
+CREATE INDEX hops_aggregate_us_dst_index ON hops_aggregate_us(dst);
+CREATE INDEX hops_aggregate_us_avg_index ON hops_aggregate_us USING BRIN(rtt_avg);
+CREATE INDEX hops_aggregate_us_spatial_src_index ON hops_aggregate_us USING spgist(src_loc);
+CREATE INDEX hops_aggregate_us_spatial_dst_index ON hops_aggregate_us USING spgist(dst_loc);
+SELECT COUNT(*) FROM hops_aggregate_us;
+

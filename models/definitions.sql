@@ -86,3 +86,11 @@ CREATE TABLE quads (
     connect_med     FLOAT,
     connect_cnt     INT
 );
+
+CREATE OR REPLACE FUNCTION public.hashpoint(point) RETURNS INTEGER
+    LANGUAGE sql IMMUTABLE
+    AS 'SELECT hashfloat8($1[0]) # hashfloat8($1[1])';
+
+CREATE OPERATOR CLASS public.point_hash_ops DEFAULT FOR TYPE POINT USING hash AS
+    OPERATOR 1 ~=(point,point),
+    FUNCTION 1 public.hashpoint(point);

@@ -75,9 +75,11 @@ SELECT src FROM hops_aggregate WHERE
     src_loc[0] <= 45.005904
 ORDER BY src;
 
-SELECT src_loc[0], src_loc[1], rtt_avg / distance FROM hops_aggregate
-					   WHERE distance != 0 AND (rtt_avg / distance) < 0.1 AND (rtt_avg / distance) > 0.01 AND indirect = FALSE
-		                AND BOX(POINT(-45, -90), POINT(-22.5, -45)) @> src_loc
-					    LIMIT 10000000;
+SELECT src, src_loc[0], src_loc[1], AVG(rtt_avg / distance) AS connectivity FROM hops_aggregate
+WHERE distance != 0 AND (rtt_avg / distance) < 0.1 AND (rtt_avg / distance) > 0.01 AND indirect = FALSE
+  AND BOX(POINT(-45, -90), POINT(-22.5, -45)) @> src_loc
+GROUP BY (src, src_loc[0], src_loc[1]);
 
+SELECT COUNT(*) FROM hops_aggregate_us WHERE distance != 0;
 DELETE FROM quads;
+SELECT COUNT(*) FROM

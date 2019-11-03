@@ -24,10 +24,8 @@ parser.add_argument("--max-lng", type=float, default=180, help="Maximum longitud
 parser.add_argument("--max-lat", type=float, default=90, help="Maximum latitude.")
 parser.add_argument("--min-lng", type=float, default=-180, help="Minimum longitude.")
 parser.add_argument("--min-lat", type=float, default=-90, help="Minimum latitude.")
-parser.add_argument("-d", "--quadtree-max_depth", type=int, default=10, help="Quadtree maximum depth.")
-parser.add_argument("-i", "--quadtree-max-items", type=int, default=100, help="Quadtree maximum items per box.")
 parser.add_argument("-p", "--dpi", type=int, default=300, help="Chart DPI")
-parser.add_argument("-e", "--exponent", type=float, default=8, help="Exponent used for data processing, improves graph"
+parser.add_argument("-e", "--exponent", type=float, default=0.25, help="Exponent used for data processing, improves graph"
 																	" contrast at cost of accuracy.")
 parser.add_argument("--min-connectivity", type=float, default=0.003, help="Minimum ms/km required for display on"
 																		  " map. Useful for removing outliers.")
@@ -41,24 +39,21 @@ with open(args.dbconfig, "r") as dbconfig:
 cursor = connection.cursor()
 
 vprint("Grabbing connectivity data")
-cursor.execute("SELECT lng, lat, connectivity FROM hops_ms_per_km WHERE connectivity < ? AND connectivity > ?"
-						 " AND lng < ? AND lng > ? AND lat < ? AND lat > ?",
-						 (args.max_connectivity, args.min_connectivity, args.max_lng, args.min_lng, args.max_lat, args.min_lat))
+cursor.execute("SELECT quad, center(quad), connect_avg FROM quads"
+						 " WHERE box(point(?, ?), point(?, ?)) @> quad",
+						 (args.min_lat, args.min_lng, args.max_lat, args.max_lng))
 results = cursor.fetchall()
 connection.close()
 
-vprint("Loaded {} data points; beginning quadtree generation".format(len(results)))
-vprint("Quadtree will have at most {} levels and will split on more than {} items per box".format(
-	args.quadtree_max_depth, args.quadtree_max_items))
-quadtree = SpatialQuadtree(bbox=(args.min_lng, args.min_lat, args.max_lng, args.max_lat),
-						   max_items=args.quadtree_max_items, max_depth=args.quadtree_max_depth, auto_subdivide=False)
-for coord in results:
-	quadtree.insert(coord[2], (coord[0], coord[1]))
-quadtree.force_subdivide()
-vprint("(Mostly) balanced quadtree assembled, now collecting leaf boxes")
-quads = pd.DataFrame(quadtree.get_bboxes(), columns=["min_lng", "min_lat", "max_lng", "max_lat", "avg", "stdev", "med", "cnt"])
-vprint("Got {} boxes ({:.1f}% reduction)".format(len(quads), 100 * (1 - len(quads) / len(results))))
-del results, quadtree
+vprint("Loaded {} data points".format(len(results)))
+# Convert from string quads to numbers
+data = []
+for result in results:
+	quad = list(map(lambda x: float(x), result[0].replace("(", "").replace(")", "").split(',')))
+	quad.extend(list(map(lambda x: float(x), result[1].replace("(", "").replace(")", "").split(','))))
+	quad.extend(result[2:])
+	data.append(quad)
+quads = pd.DataFrame(data, columns=["max_lat", "max_lng", "min_lat", "min_lng", "center_y", "center_x", "avg"])
 
 # Common plot setup
 matplotlib.rcParams["figure.dpi"] = args.dpi
@@ -83,8 +78,6 @@ else:
 	# an uncommon edge case that occurs only in certain cases where a bound for a quadtree split occur on one of the
 	# existing bounds for the current box.
 	quads = quads[quads["avg"] != 0]
-	quads["center_x"] = quads[["max_lng", "min_lng"]].mean(axis=1)
-	quads["center_y"] = quads[["max_lat", "min_lat"]].mean(axis=1)
 
 if args.mode == "contour":
 	# Contour mode requires interpolated data

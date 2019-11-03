@@ -1,4 +1,5 @@
 import argparse
+import sys
 
 from SpatialQuadtree import SpatialQuadtree
 from postgresql import get_postgres_connection
@@ -13,6 +14,7 @@ with open(args.dbconfig, "r") as dbconfig:
 	connection = get_postgres_connection(dbconfig)
 cursor = connection.cursor()
 
+sys.setrecursionlimit(10000)
 SCALE = 32
 for min_lat_i in range(SCALE):
 	for min_lng_i in range(SCALE):
@@ -22,17 +24,18 @@ for min_lat_i in range(SCALE):
 		max_lng = min_lng + 360 / SCALE
 		print("Processing box {},{} (from {},{} to {},{})".format(min_lat_i, min_lng_i, min_lat, min_lng, max_lat, max_lng))
 
-		cursor.execute("SELECT src_loc[0], src_loc[1], rtt_avg / distance FROM hops_aggregate "
-					   "WHERE distance != 0 AND (rtt_avg / distance) < 0.1 AND (rtt_avg / distance) > 0.01 AND indirect = FALSE "
-		               " AND BOX(POINT(%s, %s), POINT(%s, %s)) @> src_loc"
-					   " " % (min_lat, min_lng, max_lat, max_lng))
+		cursor.execute("SELECT src_loc[0], src_loc[1], AVG(rtt_avg / distance) FROM hops_aggregate "
+		               "WHERE NOT indirect AND distance != 0 AND rtt_avg < 1000 "
+		               "AND BOX(POINT(?, ?), POINT(?, ?)) @> src_loc"
+					   # "WHERE distance != 0 AND (rtt_avg / distance) < 0.1 AND (rtt_avg / distance) > 0.01 AND indirect = FALSE "
+					   " GROUP BY (src, dst, src_loc[0], src_loc[1])", (min_lat, min_lng, max_lat, max_lng))
 						# " AND lat < 71.35 AND lat > 25.28 AND lng > -126.66 AND lng < -66.27")
 		print("\tQuery complete, fetching rows")
 		results = cursor.fetchall()
 		print("\tLoaded {} data points; beginning quadtree generation...".format(len(results)))
 
 		# Process data from into a quadtree for graphing
-		quadtree = SpatialQuadtree(bbox=(min_lat, min_lng, max_lat, max_lng), max_depth=24, max_items=2500, auto_subdivide=False)
+		quadtree = SpatialQuadtree(bbox=(min_lat, min_lng, max_lat, max_lng), max_depth=1024, max_items=16, auto_subdivide=False)
 		# quadtree = SpatialQuadtree(bbox=(25.28, -126.66, 71.35, -66.26), max_depth=10, max_items=100, auto_subdivide=False)
 		for coord in results:
 			quadtree.insert(coord[2], (coord[0], coord[1]))

@@ -9,21 +9,23 @@ import postgresql
 
 parser = argparse.ArgumentParser(description="Plot a histogram to highlight data distributions")
 parser.add_argument("dbconfig", type=str, help="PostgreSQL database config.")
+parser.add_argument("--dpi", "-p", type=int, default=600, help="Chart DPI")
+parser.add_argument("--output", "-o", type=str, help="Output CSV to dump to, if desired")
 args = parser.parse_args()
 
 with open(args.dbconfig, "r") as dbconfig:
 	connection = postgresql.get_postgres_connection(dbconfig)
 
-df = pd.read_sql_query("SELECT rtt_stdev / rtt_avg AS data FROM hops_aggregate WHERE rtt_avg != 0 AND (rtt_stdev / rtt_avg) < 1.0", connection)
+df = pd.read_sql_query("SELECT measurements AS data FROM hops_aggregate WHERE NOT indirect AND measurements < 30 LIMIT 10000000", connection)
 print("Retrieved {} rows".format(len(df)))
 
 # Main histogram chart
-matplotlib.rcParams["figure.dpi"] = 600
+matplotlib.rcParams["figure.dpi"] = args.dpi
 fig, ax = plt.subplots()
-ax.hist(df["data"], bins=1500)
+ax.hist(df["data"], bins=15)
 labels = ax.get_xticklabels()
-ax.set(xlim=[0, 1], ylabel="Measurement count", xlabel="Coefficient of variation",
-	   title="CAIDA Coefficient of Variation Distribution")
+ax.set(ylabel="Measurement count", xlabel="RTT values",
+	   title="Average RTT distribution")
 
 # Display 5th and 95th quantiles
 quantiles = df.quantile(q=[0.05, 0.95]).to_numpy()
@@ -32,3 +34,6 @@ ax.axvline(quantiles[0], ls="--", color="r")
 ax.axvline(quantiles[1], ls="--", color="r")
 
 plt.show()
+
+if args.output is not None:
+	df.to_csv(args.output)
