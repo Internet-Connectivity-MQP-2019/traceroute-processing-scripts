@@ -80,6 +80,6 @@ WHERE distance != 0 AND (rtt_avg / distance) < 0.1 AND (rtt_avg / distance) > 0.
   AND BOX(POINT(-45, -90), POINT(-22.5, -45)) @> src_loc
 GROUP BY (src, src_loc[0], src_loc[1]);
 
-SELECT COUNT(*) FROM hops_aggregate_us WHERE distance != 0;
+SELECT COUNT(*) FROM hops_aggregate_us;
 DELETE FROM quads;
 SELECT COUNT(*) FROM
