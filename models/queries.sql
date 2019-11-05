@@ -80,6 +80,9 @@ WHERE distance != 0 AND (rtt_avg / distance) < 0.1 AND (rtt_avg / distance) > 0.
   AND BOX(POINT(-45, -90), POINT(-22.5, -45)) @> src_loc
 GROUP BY (src, src_loc[0], src_loc[1]);
 
-SELECT COUNT(*) FROM hops_aggregate_us;
+SELECT COUNT(*) FROM hops_aggregate;
+SELECT COUNT(*) FROM hops_aggregate WHERE indirect;
+SELECT COUNT(*) FROM hops_aggregate WHERE !indirect;
 DELETE FROM quads;
-SELECT COUNT(*) FROM
+
+SELECT src_loc[0] AS src_lat, src_loc[1] AS src_lng, dst_loc[0] AS dst_lat, dst_loc[1] AS dst_lng, indirect::int, rtt_avg, rtt_stdev, rtt_range, measurements FROM  hops_aggregate_us WHERE rtt_avg > 0
