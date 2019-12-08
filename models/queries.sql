@@ -2,11 +2,6 @@ EXPLAIN SELECT count(*) FROM hops;
 SELECT count(ip) FROM locations;
 SELECT count(src) FROM hops_aggregate;
 
-CREATE OR REPLACE FUNCTION hop_split(src INET, dst INET) RETURNS QUERY AS $hops_split$
-BEGIN
-    RETURN (src, dst);
-END $hops_split$ language plpgsql;
-
 SELECT hop_split(inet_in('192.168.1.1'), inet_in('192.168.1.2'));
 
 INSERT INTO locations(ip)
@@ -86,3 +81,19 @@ SELECT COUNT(*) FROM hops_aggregate WHERE !indirect;
 DELETE FROM quads;
 
 SELECT src_loc[0] AS src_lat, src_loc[1] AS src_lng, dst_loc[0] AS dst_lat, dst_loc[1] AS dst_lng, indirect::int, rtt_avg, rtt_stdev, rtt_range, measurements FROM  hops_aggregate_us WHERE rtt_avg > 0
+
+SELECT *, frac_c_efficiency(rtt_avg, distance) FROM hops_aggregate_us
+WHERE
+    NOT indirect
+    AND rtt_avg > 0
+    AND distance > 0
+    AND frac_c_efficiency(rtt_avg, distance) < 1.0
+ORDER BY rtt_avg LIMIT 500;
+
+SELECT COUNT(*) FROM hops_aggregate_view WHERE distance > 0 AND rtt_avg > 0 AND frac_c_efficiency(rtt_avg, distance) < 1;
+
+SELECT src_lat, src_lng, dst_lat, dst_lng, distance, rtt_avg, rtt_stdev, rtt_range, measurements, frac_c_efficiency(rtt_avg, distance) FROM hops_aggregate_us WHERE distance > 0 AND frac_c_efficiency(rtt_avg, distance) < 1 AND frac_c_efficiency(rtt_avg, distance) >= 0 AND rtt_avg > 0 AND NOT indirect;
+
+
+SELECT COUNT(*) FROM hops_aggregate_us
+WHERE distance > 0 AND frac_c_efficiency(rtt_avg, distance) < 1 AND frac_c_efficiency(rtt_avg, distance) >= 0 AND rtt_avg > 0

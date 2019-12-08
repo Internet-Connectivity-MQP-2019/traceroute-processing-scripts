@@ -51,41 +51,14 @@ CREATE TABLE hops_aggregate (
     rtt_avg         REAL,
     rtt_stdev       REAL,
     rtt_range       REAL,
-    time_avg        REAL,
-    time_stdev      REAL,
-    time_range      REAL,
     measurements    BIGINT,
     PRIMARY KEY (src, dst, indirect)
 );
 
-INSERT INTO hops_aggregate (
-    SELECT
-           src,
-           dst,
-           indirect,
-           hop[0],
-           hop[1],
-           distance,
-           rtt_avg,
-           rtt_stdev,
-           rtt_range,
-           time_avg,
-           time_stdev,
-           time_range,
-           measurements
-    FROM hops_aggregate_view);
+CREATE INDEX hops_stats_index ON hops_aggregate_view USING brin(rtt_avg, rtt_stdev, rtt_range, measurements);
+CREATE INDEX hops_spatial_src_index ON hops_aggregate_view USING spgist(src_loc);
+CREATE INDEX hops_spatial_dst_index ON hops_aggregate_view USING spgist(dst_loc);
 
-CREATE INDEX hops_stats_index ON hops_aggregate USING brin(rtt_avg, rtt_stdev, rtt_range, time_avg, time_stdev, time_range, measurements);
-CREATE INDEX hops_spatial_src_index ON hops_aggregate USING spgist(src_loc);
-CREATE INDEX hops_spatial_dst_index ON hops_aggregate USING spgist(dst_loc);
-
-CREATE TABLE quads (
-    quad            BOX,
-    connect_avg     FLOAT,
-    connect_stdev   FLOAT,
-    connect_med     FLOAT,
-    connect_cnt     INT
-);
 
 CREATE OR REPLACE FUNCTION public.hashpoint(point) RETURNS INTEGER
     LANGUAGE sql IMMUTABLE

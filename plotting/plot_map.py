@@ -35,8 +35,8 @@ ax.coastlines()
 # rtts["connectivity"] = pow(rtts["connectivity"], 2)
 X_RES = 180*5
 Y_RES = 90*5
-grid_x = np.linspace(-X_RES, X_RES, 2*X_RES + 1)
-grid_y = np.linspace(-Y_RES, Y_RES, 2*Y_RES + 1)
+grid_x = np.linspace(-180, 180, 2*X_RES)
+grid_y = np.linspace(-90, 180, 2*Y_RES)
 
 plt.scatter(rtts["lng"].values, rtts["lat"].values, c=rtts["connectivity"], transform=ccrs.PlateCarree(), marker=".", alpha=0.1)
 # z = griddata((rtts["lng"].values, rtts["lat"].values), rtts["rtt"].values, (grid_x[None, :], grid_y[:, None]), method='linear')

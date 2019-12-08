@@ -10,9 +10,29 @@ RETURNS REAL AS $distance$
     END;
 $distance$ LANGUAGE plpgsql;
 
--- Materialized view caches results since the query inside is ridiculously expensive
+CREATE OR REPLACE FUNCTION frac_c_efficiency (rtt FLOAT, distance FLOAT)
+RETURNS REAL AS $efficiency$
+    BEGIN
+        RETURN (2 * distance) / (rtt * 299.79246);
+    END;
+$efficiency$ LANGUAGE plpgsql;
 
-CREATE MATERIALIZED VIEW hops_aggregate AS (
+CREATE MATERIALIZED VIEW hops_stats AS (
+    SELECT
+            src,
+            dst,
+            indirect,
+            avg(rtt),
+            CASE
+                WHEN COUNT(*) = 1 THEN 9999999
+                ELSE stddev_samp(rtt)
+                END
+        FROM hops
+        GROUP BY src, dst, indirect
+);
+CREATE INDEX hops_stats_view_index ON hops_stats(src, dst, indirect);
+
+CREATE MATERIALIZED VIEW hops_aggregate_view AS (
     SELECT
         agg.src,
         agg.dst,
@@ -23,70 +43,70 @@ CREATE MATERIALIZED VIEW hops_aggregate AS (
         agg.rtt_avg,
         agg.rtt_stdev,
         agg.rtt_range,
-        agg.time_avg,
-        agg.time_stdev,
-        agg.time_range,
         agg.measurements
     FROM (
-             SELECT src,
-                    dst,
-                    indirect,
+             SELECT hops.src,
+                    hops.dst,
+                    hops.indirect,
                     AVG(RTT)                AS rtt_avg,
-                    STDDEV(RTT)             AS rtt_stdev,
+                    STDDEV_SAMP(RTT)        AS rtt_stdev,
                     MAX(RTT) - MIN(RTT)     AS rtt_range,
-                    AVG(time)               AS time_avg,
-                    STDDEV(time)            AS time_stdev,
-                    MAX(time) - MIN(time)   AS time_range,
-                    COUNT(src)              AS measurements
+                    COUNT(*)              AS measurements
              FROM hops
-             GROUP BY (dst, src, indirect)
+                      INNER JOIN hops_stats hs
+                                 ON hops.src = hs.src AND hops.dst = hs.dst AND hs.stddev_samp != 0 AND hops.indirect = hs.indirect AND ABS((hops.rtt - hs.avg) / hs.stddev_samp) <= 2
+             GROUP BY (hops.dst, hops.src, hops.indirect)
          ) agg
-    INNER JOIN locations src_loc ON agg.src = src_loc.ip
-    INNER JOIN locations dst_loc ON agg.dst = dst_loc.ip
+             INNER JOIN locations src_loc ON agg.src = src_loc.ip
+             INNER JOIN locations dst_loc ON agg.dst = dst_loc.ip
 );
-CREATE TABLE hops_aggregate AS (SELECT * FROM hops_aggregate_view);
 
+
+
+CREATE TABLE hops_aggregate AS (SELECT * FROM hops_aggregate_view);
 CREATE INDEX hops_aggregate_src_index ON hops_aggregate(src);
 CREATE INDEX hops_aggregate_dst_index ON hops_aggregate(dst);
 CREATE INDEX hops_aggregate_avg_index ON hops_aggregate USING BRIN(rtt_avg);
 -- REFRESH MATERIALIZED VIEW hops_aggregate; -- Run to update the view. Will take a while!
 
-CREATE VIEW hops_aggregate_stdev_filtered AS (
-    WITH bounds AS (
-        SELECT (AVG(rtt_avg) - STDDEV_SAMP(rtt_avg) * 0.2) AS lower_bound,
-               (AVG(rtt_avg) + STDDEV_SAMP(rtt_avg) * 1.0) AS upper_bound
-        FROM hops_aggregate
-    )
-    SELECT * FROM hops_aggregate WHERE rtt_avg BETWEEN (SELECT lower_bound FROM bounds) AND (SELECT upper_bound FROM bounds)
-);
-
 CREATE TABLE hops_aggregate_us (
     src             INET,
     dst             INET,
     indirect        BOOLEAN,
-    src_loc         POINT,
-    dst_loc         POINT,
+    src_lat         REAL,
+    src_lng         REAL,
+    dst_lat         REAL,
+    dst_lng         REAL,
     distance        REAL,
     rtt_avg         REAL,
     rtt_stdev       REAL,
     rtt_range       REAL,
-    time_avg        REAL,
-    time_stdev      REAL,
-    time_range      REAL,
     measurements    BIGINT,
     PRIMARY KEY (src, dst, indirect)
 );
 INSERT INTO hops_aggregate_us (
-    SELECT *
-    FROM hops_aggregate
+    SELECT
+           src,
+           dst,
+           indirect,
+           src_loc[0],
+           src_loc[1],
+           dst_loc[0],
+           dst_loc[1],
+           distance,
+           rtt_avg,
+           rtt_stdev,
+           rtt_range,
+           measurements
+    FROM hops_aggregate_view
     WHERE BOX(POINT(18.91619, -171.791110603), POINT(71.3577635769, -66.96466)) @> src_loc
     OR BOX(POINT(18.91619, -171.791110603), POINT(71.3577635769, -66.96466)) @> dst_loc
 );
 
-CREATE INDEX hops_aggregate_us_src_index ON hops_aggregate_us(src);
-CREATE INDEX hops_aggregate_us_dst_index ON hops_aggregate_us(dst);
-CREATE INDEX hops_aggregate_us_avg_index ON hops_aggregate_us USING BRIN(rtt_avg);
+CREATE INDEX hops_aggregate_us_src_dst_index ON hops_aggregate_us(src, dst);
+CREATE INDEX hops_aggregate_us_stats_index ON hops_aggregate_us USING BRIN(rtt_avg, rtt_stdev, rtt_range, measurements);
 CREATE INDEX hops_aggregate_us_spatial_src_index ON hops_aggregate_us USING spgist(src_loc);
 CREATE INDEX hops_aggregate_us_spatial_dst_index ON hops_aggregate_us USING spgist(dst_loc);
-SELECT COUNT(*) FROM hops_aggregate_us;
+SELECT COUNT(*) FROM hops_aggregate_view;
+SELECT SUM(measurements) FROM hops_aggregate_view;
 
