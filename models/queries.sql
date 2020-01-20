@@ -95,5 +95,6 @@ SELECT COUNT(*) FROM hops_aggregate_view WHERE distance > 0 AND rtt_avg > 0 AND 
 SELECT src_lat, src_lng, dst_lat, dst_lng, distance, rtt_avg, rtt_stdev, rtt_range, measurements, frac_c_efficiency(rtt_avg, distance) FROM hops_aggregate_us WHERE distance > 0 AND frac_c_efficiency(rtt_avg, distance) < 1 AND frac_c_efficiency(rtt_avg, distance) >= 0 AND rtt_avg > 0 AND NOT indirect;
 
 
-SELECT COUNT(*) FROM hops_aggregate_us
-WHERE distance > 0 AND frac_c_efficiency(rtt_avg, distance) < 1 AND frac_c_efficiency(rtt_avg, distance) >= 0 AND rtt_avg > 0
+SELECT COUNT(*) FROM hops_aggregate_view WHERE rtt_avg != 0;
+SELECT COUNT(*) FROM hops_aggregate_us;
+SELECT distance, frac_c_efficiency(rtt_avg, distance, indirect), rtt_avg, rtt_stdev,rtt_range, measurements, indirect FROM hops_aggregate_view WHERE rtt_avg != 0 LIMIT 1000000 OFFSET 0;

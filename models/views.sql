@@ -10,10 +10,14 @@ RETURNS REAL AS $distance$
     END;
 $distance$ LANGUAGE plpgsql;
 
-CREATE OR REPLACE FUNCTION frac_c_efficiency (rtt FLOAT, distance FLOAT)
+CREATE OR REPLACE FUNCTION frac_c_efficiency (rtt FLOAT, distance FLOAT, indirect BOOLEAN)
 RETURNS REAL AS $efficiency$
     BEGIN
-        RETURN (2 * distance) / (rtt * 299.79246);
+        IF NOT indirect THEN
+            RETURN (2 * distance) / (rtt * 299.79246);
+        ELSE
+            RETURN (2 * distance) / (2 * rtt * 299.79246);
+        END IF;
     END;
 $efficiency$ LANGUAGE plpgsql;
 

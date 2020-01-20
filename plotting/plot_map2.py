@@ -43,17 +43,23 @@ print("Grouped to {} data points".format(len(df.index)))
 df = df[(-127 < df["dst_lng"]) & (df["dst_lng"] < -65) & (25 < df["dst_lat"]) & (df["dst_lat"] < 51)]
 print("Filtered to {} data points".format(len(df)))
 
+print(df["frac_c_efficiency"].quantile([0.15, 0.35, 0.5, 0.65, 0.85]))
+
+df.to_csv("test.csv")
+
 # Set up matplotlib
 # matplotlib.rcParams["figure.dpi"] = 900
 matplotlib.rcParams["axes.titlesize"] = 10
-fig, axes = plt.subplots(2, 2, dpi=900)
-axes = np.reshape(axes, (1, 4)).tolist()[0]  # Wat?
+fig, axes = plt.subplots(3, 2, dpi=900)
+axes = np.reshape(axes, (1, 6)).tolist()[0]  # Wat?
 for axis in axes:
 	axis.axis("off")
 ax1 = axes[0]
 ax2 = axes[1]
 ax3 = axes[2]
 ax4 = axes[3]
+ax5 = axes[4]
+ax6 = axes[5]
 
 
 #########

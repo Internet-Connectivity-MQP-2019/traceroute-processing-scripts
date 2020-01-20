@@ -4,8 +4,8 @@ import argparse
 import matplotlib
 import pandas as pd
 import matplotlib.pyplot as plt
-
 import postgresql
+
 
 parser = argparse.ArgumentParser(description="Plot a histogram to highlight data distributions")
 parser.add_argument("dbconfig", type=str, help="PostgreSQL database config.")
@@ -16,13 +16,13 @@ args = parser.parse_args()
 with open(args.dbconfig, "r") as dbconfig:
 	connection = postgresql.get_postgres_connection(dbconfig)
 
-df = pd.read_sql_query("SELECT measurements AS data FROM hops_aggregate WHERE NOT indirect AND measurements < 30 LIMIT 10000000", connection)
+df = pd.read_sql_query("SELECT measurements AS data FROM hops_aggregate_us WHERE NOT indirect AND measurements < 30 LIMIT 10000000", connection)
 print("Retrieved {} rows".format(len(df)))
 
 # Main histogram chart
 matplotlib.rcParams["figure.dpi"] = args.dpi
 fig, ax = plt.subplots()
-ax.hist(df["data"], bins=15)
+ax.hist(df["data"], bins=150)
 labels = ax.get_xticklabels()
 ax.set(ylabel="Measurement count", xlabel="RTT values",
 	   title="Average RTT distribution")
