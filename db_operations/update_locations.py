@@ -2,7 +2,7 @@
 import argparse
 import sys
 
-from postgresql import get_postgres_connection
+from .postgresql import get_postgres_connection
 import geoip2.database
 
 
