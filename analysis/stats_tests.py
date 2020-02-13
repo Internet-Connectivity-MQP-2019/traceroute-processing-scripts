@@ -80,7 +80,10 @@ for state1, state2 in state_permutations:
 	# Calculate ratio of scores
 	state1_median = np.median(states_value[state1])
 	state2_median = np.median(states_value[state2])
-	ratio = state1_median / state2_median if state1_median < state2_median else state2_median / state1_median
+	if state2_median < state1_median:
+		state1_median, state2_median = state2_median, state1_median
+		state1, state2 = state2, state1
+	ratio = state1_median / state2_median
 
 	results = stats.kruskal(states_value[state1], states_value[state2])
 	sp = sp.append(pd.Series([state1, state2, results[0], results[1], ratio], index=sp.columns), ignore_index=True)
