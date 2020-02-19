@@ -4,9 +4,9 @@ import pandas as pd
 from networkx.algorithms.community import asyn_lpa_communities
 from networkx.algorithms.dag import topological_sort
 
-valid_comps = True
+valid_comps = False
 
-df: pd.DataFrame = pd.read_pickle("data/state_adjacency_dns.pkl")
+df: pd.DataFrame = pd.read_pickle("data/state_adjacency_siteping.pkl")
 df = df[df.p < 0.05 if valid_comps else df.p >= 0.05]
 df.sort_values(["ratio"], inplace=True, ascending=True)
 
