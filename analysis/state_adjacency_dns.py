@@ -1,9 +1,5 @@
-import itertools
-
 import networkx as nx
-import numpy as np
 import pandas as pd
-from scipy.stats import kruskal
 
 df: pd.DataFrame = pd.read_csv("rtt_3_0.2_kruskals_p.csv", index_col=0)
 graph = nx.convert_matrix.from_pandas_adjacency(df)
