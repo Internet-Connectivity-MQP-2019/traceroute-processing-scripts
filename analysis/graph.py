@@ -1,22 +1,25 @@
 import matplotlib.pyplot as plt
 import networkx as nx
-from networkx.algorithms.community import asyn_lpa_communities
-from networkx.algorithms.dag import all_topological_sorts, topological_sort
-
 import pandas as pd
+from networkx.algorithms.community import asyn_lpa_communities
+from networkx.algorithms.dag import topological_sort
 
-df: pd.DataFrame = pd.read_pickle("data/state_adjacency.pkl")
-df = df[df.p < 0.05]
+valid_comps = True
 
-graph = nx.from_pandas_edgelist(df, "state1", "state2", ["ratio", "p", "h"], create_using=nx.DiGraph)
-# pos = nx.spring_layout(graph, center=(0.5, 0.5), scale=0.5, k=1/len(graph)**0.1, seed=1)
-pos = nx.kamada_kawai_layout(graph, center=(0.5, 0.5), scale=0.5)
+df: pd.DataFrame = pd.read_pickle("data/state_adjacency_dns.pkl")
+df = df[df.p < 0.05 if valid_comps else df.p >= 0.05]
+df.sort_values(["ratio"], inplace=True, ascending=True)
 
-# Base network
+graph = nx.from_pandas_edgelist(df, "state1", "state2", ["ratio", "p", "h"], create_using=(nx.DiGraph if valid_comps else nx.Graph))
+pos = nx.spring_layout(graph, center=(0.5, 0.5), scale=0.5, k=1/len(graph)**0.1, seed=1)
+# pos = nx.kamada_kawai_layout(graph, center=(0.5, 0.5), scale=0.5)
+
+# Base edges
 nx.draw_networkx_edges(graph, pos=pos, width=0.2)
 
 # Bridges
-# nx.draw_networkx_edges(graph, edgelist=list(nx.bridges(graph)), pos=pos, width=3, alpha=0.5, edge_color="r")
+if type(graph) is not nx.DiGraph and nx.has_bridges(graph):
+	nx.draw_networkx_edges(graph, edgelist=list(nx.bridges(graph)), pos=pos, width=3, alpha=0.5, edge_color="r")
 
 # Nodes with colors
 groups = list(asyn_lpa_communities(graph, weight="h"))
@@ -26,6 +29,7 @@ nx.draw_networkx_nodes(graph, pos=pos, node_color=colors, cmap="tab20")
 # Labels
 nx.draw_networkx_labels(graph, pos, font_size=10)
 
-sorts = list(all_topological_sorts(graph))
+if type(graph) is nx.DiGraph:
+	sorts = list(reversed(list(topological_sort(graph))))
 
 plt.show()
